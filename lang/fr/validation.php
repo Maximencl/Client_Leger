@@ -128,6 +128,7 @@ return [
         'birthday'                 => 'Birthday',
         'body'                     => 'Body',
         'city'                     => 'ville',
+        'comment'                  => 'commentaire',
         'content'                  => 'contenu',
         'country'                  => 'pays',
         'created_at'               => 'Created At',
