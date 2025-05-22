@@ -6,74 +6,93 @@ use App\Http\Requests\PostRequest;
 use App\Models\Category;
 use App\Models\Post;
 use App\Models\Tag;
-use Illuminate\Http\Request;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\View\View;
 
 class AdminController extends Controller
 {
-public function __construct()
-{
-    $this->middleware('admin');
-}
+    public function __construct()
+    {
+        $this->middleware('admin');
+    }
 
-/**
- * Display a listing of the resource.
- */
-public function index()
-{
-    return view('admin.posts.index', [
-        'posts' => Post::without('category', 'tags')->latest()->get(),
-    ]);
-}
+    /**
+     * Display a listing of the resource.
+     */
+    public function index()
+    {
+        return view('admin.posts.index', [
+            'posts' => Post::without('category', 'tags')->latest()->get(),
+        ]);
+    }
 
-/**
- * Show the form for creating a new resource.
- */
-public function create()
-{
-    return view('admin.posts.form', [
-        'categories' => Category::orderBy('name')->get(),
-        'tags' => Tag::orderBy('name')->get(),
-    ]);
-}
+    /**
+     * Show the form for creating a new resource.
+     */
+    public function create(): View
+    {
+        return $this->showForm();
+    }
 
-/**
- * Store a newly created resource in storage.
- */
-public function store(PostRequest $request)
-{
-    $validated = $request->validated();
+    /**
+     * Show the form for editing the specified resource.
+     */
+    public function edit(Post $post): View
+    {
+        return $this->showForm($post);
+    }
 
-    $validated['thumbnail'] = $validated['thumbnail']->store('thumbnails');
-    $validated['excerpt'] = Str::limit($validated['content'], 150);
+    protected function showForm(Post $post = new Post): View
+    {
+        return view('admin.posts.form', [
+            'post' => $post,
+            'categories' => Category::orderBy('name')->get(),
+            'tags' => Tag::orderBy('name')->get(),
+        ]);
+    }
 
-    $post = Post::create($validated);
-    $post->tags()->sync($validated['tag_ids'] ?? null);
+    /**
+     * Store a newly created resource in storage.
+     */
+    public function store(PostRequest $request): RedirectResponse
+    {
+        return $this->save($request->validated());
+    }
 
-    return redirect()->route('posts.show', ['post' => $post])->withStatus('Post publié !');
-}
+    /**
+     * Update the specified resource in storage.
+     */
+    public function update(PostRequest $request, Post $post): RedirectResponse
+    {
+        return $this->save($request->validated(), $post);
+    }
 
-/**
- * Show the form for editing the specified resource.
- */
-public function edit(Post $post)
-{
-    //
-}
+    protected function save(array $data, Post $post = null): RedirectResponse
+    {
+        if (isset($data['thumbnail'])) {
+            if (isset($post->thumbnail)) {
+                Storage::delete($post->thumbnail);
+            }
+            $data['thumbnail'] = $data['thumbnail']->store('thumbnails');
+        }
 
-/**
- * Update the specified resource in storage.
- */
-public function update(Request $request, Post $post)
-{
-    //
-}
+        $data['excerpt'] = Str::limit($data['content'], 150);
 
-/**
- * Remove the specified resource from storage.
- */
-public function destroy(Post $post)
-{
-    //
-}
+        $post = Post::updateOrCreate(['id' => $post?->id], $data);
+        $post->tags()->sync($data['tag_ids'] ?? null);
+
+        return redirect()->route('posts.show', ['post' => $post])->withStatus(
+            $post->wasRecentlyCreated ? 'Post publié !' : 'Post mis à jour !'
+        );
+    }
+
+    /**
+     * Remove the specified resource from storage.
+     */
+    public function destroy(Post $post)
+    {
+        //
+    }
 }
